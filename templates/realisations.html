@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+
+{% block title %}Gestion des Réalisations - Admin Labmath{% endblock %}
+
+{% block page_title %}Gestion des Réalisations{% endblock %}
+
+{% block page_actions %}
+<div class="btn-group">
+    <a href="{{ url_for('nouvelle_realisation') }}" class="btn btn-primary">
+        <i class="bi bi-plus-circle"></i> Nouvelle réalisation
+    </a>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Titre</th>
+                        <th>Image</th>
+                        <th>Catégorie</th>
+                        <th>Date réalisation</th>
+                        <th>Date création</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for realisation in realisations %}
+                    <tr>
+                        <td>{{ realisation.id }}</td>
+                        <td>
+                            <strong>{{ realisation.titre }}</strong>
+                            {% if realisation.description %}
+                            <br><small class="text-muted">{{ realisation.description[:100] }}...</small>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if realisation.image_url %}
+                            <img src="{{ realisation.image_url }}" alt="{{ realisation.titre }}" 
+                                 style="width: 80px; height: 60px; object-fit: cover; border-radius: 5px;">
+                            {% else %}
+                            <span class="text-muted">Aucune image</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="badge bg-secondary">{{ realisation.categorie or 'Non catégorisé' }}</span>
+                        </td>
+                        <td>
+                            {% if realisation.date_realisation %}
+                            {{ realisation.date_realisation.strftime('%d/%m/%Y') }}
+                            {% else %}
+                            <span class="text-muted">Non définie</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ realisation.date_creation.strftime('%d/%m/%Y %H:%M') }}</td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                <a href="{{ url_for('modifier_realisation', id=realisation.id) }}" 
+                                   class="btn btn-warning" title="Modifier">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                                <form method="POST" action="{{ url_for('supprimer_realisation', id=realisation.id) }}" 
+                                      class="d-inline" onsubmit="return confirm('Supprimer cette réalisation ?');">
+                                    <button type="submit" class="btn btn-danger" title="Supprimer">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </form>
+                                <a href="#" class="btn btn-info" title="Aperçu">
+                                    <i class="bi bi-eye"></i>
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center text-muted py-4">
+                            <i class="bi bi-trophy display-6 d-block mb-2"></i>
+                            Aucune réalisation enregistrée pour le moment.
+                            <br>
+                            <a href="{{ url_for('nouvelle_realisation') }}" class="btn btn-primary mt-3">
+                                <i class="bi bi-plus-circle"></i> Créer la première réalisation
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Statistiques -->
+<div class="row mt-4">
+    <div class="col-md-3">
+        <div class="card bg-primary text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title">Total Réalisations</h6>
+                        <h3 class="mb-0">{{ realisations|length }}</h3>
+                    </div>
+                    <i class="bi bi-trophy display-6"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-success text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title">Cette année</h6>
+                        <h3 class="mb-0">
+                            {% set current_year = now.year %}
+                            {% set count = realisations|selectattr('date_creation', 'year_equal', current_year)|list|length %}
+                            {{ count }}
+                        </h3>
+                    </div>
+                    <i class="bi bi-calendar-check display-6"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-warning text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title">Avec images</h6>
+                        <h3 class="mb-0">
+                            {% set with_images = realisations|selectattr('image_url')|list|length %}
+                            {{ with_images }}
+                        </h3>
+                    </div>
+                    <i class="bi bi-image display-6"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-info text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title">Catégories</h6>
+                        <h3 class="mb-0">
+                            {% set categories = [] %}
+                            {% for r in realisations %}
+                                {% if r.categorie and r.categorie not in categories %}
+                                    {% set _ = categories.append(r.categorie) %}
+                                {% endif %}
+                            {% endfor %}
+                            {{ categories|length }}
+                        </h3>
+                    </div>
+                    <i class="bi bi-tags display-6"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Filtrage par catégorie
+    function filterByCategory(category) {
+        const rows = document.querySelectorAll('tbody tr');
+        rows.forEach(row => {
+            const categoryCell = row.querySelector('td:nth-child(4) .badge');
+            if (category === 'all' || (categoryCell && categoryCell.textContent.includes(category))) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        });
+    }
+</script>
+{% endblock %}

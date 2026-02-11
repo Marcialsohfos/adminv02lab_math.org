@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ 'Modifier' if action == 'modifier' else 'Nouvelle' }} Activité</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css">
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        .navbar {
+            box-shadow: 0 2px 4px rgba(0,0,0,.1);
+        }
+        .container {
+            max-width: 1200px;
+            margin-top: 20px;
+        }
+        .card {
+            box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+            margin-bottom: 20px;
+        }
+        .sidebar {
+            position: fixed;
+            top: 56px;
+            left: 0;
+            bottom: 0;
+            width: 250px;
+            background: #f8f9fa;
+            border-right: 1px solid #dee2e6;
+            padding: 20px;
+        }
+        .main-content {
+            margin-left: 250px;
+            padding: 20px;
+        }
+        @media (max-width: 768px) {
+            .sidebar {
+                position: static;
+                width: 100%;
+            }
+            .main-content {
+                margin-left: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="{{ url_for('dashboard') }}">
+                <i class="bi bi-speedometer2"></i> Admin Labmath
+            </a>
+            <div class="navbar-nav ms-auto">
+                {% if session.get('user_id') %}
+                <span class="navbar-text me-3">
+                    <i class="bi bi-person-circle"></i> {{ session.get('username', 'Admin') }}
+                </span>
+                <a class="btn btn-outline-light btn-sm" href="{{ url_for('logout') }}">
+                    <i class="bi bi-box-arrow-right"></i> Déconnexion
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+            <div class="col-md-3 col-lg-2 d-md-block sidebar">
+                <ul class="nav flex-column">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('dashboard') }}">
+                            <i class="bi bi-speedometer2"></i> Tableau de bord
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="{{ url_for('activites') }}">
+                            <i class="bi bi-calendar-event"></i> Activités
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('realisations') }}">
+                            <i class="bi bi-trophy"></i> Réalisations
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('annonces') }}">
+                            <i class="bi bi-megaphone"></i> Annonces
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('offres') }}">
+                            <i class="bi bi-briefcase"></i> Offres
+                        </a>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Main content -->
+            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
+                <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                    <h1 class="h2">
+                        <i class="bi bi-calendar-event"></i>
+                        {{ 'Modifier' if action == 'modifier' else 'Nouvelle' }} Activité
+                    </h1>
+                </div>
+
+                <!-- Messages flash -->
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                            <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show" role="alert">
+                                {{ message }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+
+                <div class="row">
+                    <div class="col-md-8">
+                        <div class="card">
+                            <div class="card-body">
+                                <form method="POST">
+                                    <div class="mb-3">
+                                        <label for="titre" class="form-label">Titre *</label>
+                                        <input type="text" class="form-control" id="titre" name="titre" 
+                                               value="{{ activite.titre if activite else '' }}" required>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label for="description" class="form-label">Description</label>
+                                        <textarea class="form-control" id="description" name="description" rows="3">{{ activite.description if activite else '' }}</textarea>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label for="image_url" class="form-label">URL de l'image</label>
+                                        <input type="url" class="form-control" id="image_url" name="image_url"
+                                               value="{{ activite.image_url if activite else '' }}"
+                                               placeholder="https://example.com/image.jpg">
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label for="contenu" class="form-label">Contenu *</label>
+                                        <div id="editor" style="height: 300px; margin-bottom: 10px;"></div>
+                                        <textarea id="contenu" name="contenu" style="display: none;">
+                                            {{ activite.contenu if activite else '' }}
+                                        </textarea>
+                                    </div>
+                                    
+                                    {% if activite %}
+                                    <div class="mb-3">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="est_publie" name="est_publie" 
+                                                   value="true" {% if activite.est_publie %}checked{% endif %}>
+                                            <label class="form-check-label" for="est_publie">
+                                                Publié
+                                            </label>
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                    
+                                    <div class="d-flex justify-content-between">
+                                        <a href="{{ url_for('activites') }}" class="btn btn-secondary">
+                                            <i class="bi bi-arrow-left"></i> Annuler
+                                        </a>
+                                        <button type="submit" class="btn btn-primary">
+                                            <i class="bi bi-save"></i> 
+                                            {{ 'Mettre à jour' if action == 'modifier' else 'Créer' }}
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-4">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0"><i class="bi bi-info-circle"></i> Conseils</h5>
+                            </div>
+                            <div class="card-body">
+                                <p><strong>Pour de meilleures activités :</strong></p>
+                                <ul class="small">
+                                    <li>Utilisez un titre clair et accrocheur</li>
+                                    <li>Ajoutez une image illustrative</li>
+                                    <li>Structurez le contenu avec des titres</li>
+                                    <li>Vérifiez l'orthographe</li>
+                                    <li>Les activités non publiées ne sont pas visibles sur le site</li>
+                                </ul>
+                                
+                                {% if activite %}
+                                <hr>
+                                <div class="small">
+                                    <p><strong>Informations :</strong></p>
+                                    <p>ID: {{ activite.id }}</p>
+                                    <p>Créée le: {{ activite.date_creation.strftime('%d/%m/%Y %H:%M') if activite.date_creation else 'N/A' }}</p>
+                                    {% if activite.date_modification %}
+                                    <p>Modifiée le: {{ activite.date_modification.strftime('%d/%m/%Y %H:%M') }}</p>
+                                    {% endif %}
+                                    <p>Auteur: {{ activite.auteur }}</p>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
+    <script>
+        // Initialiser l'éditeur Quill
+        const quill = new Quill('#editor', {
+            theme: 'snow',
+            modules: {
+                toolbar: [
+                    [{ 'header': [1, 2, 3, false] }],
+                    ['bold', 'italic', 'underline'],
+                    ['link', 'image'],
+                    [{ 'list': 'ordered'}, { 'list': 'bullet' }]
+                ]
+            }
+        });
+        
+        // Charger le contenu existant
+        const contentField = document.getElementById('contenu');
+        if (contentField && contentField.value.trim()) {
+            quill.root.innerHTML = contentField.value;
+        }
+        
+        // Mettre à jour le champ caché avant soumission
+        document.querySelector('form').addEventListener('submit', function() {
+            contentField.value = quill.root.innerHTML;
+        });
+    </script>
+</body>
+</html>

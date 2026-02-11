@@ -1,0 +1,355 @@
+{% extends "base.html" %}
+
+{% block title %}Gestion des Offres - Admin Labmath{% endblock %}
+
+{% block page_title %}Gestion des Offres{% endblock %}
+
+{% block page_actions %}
+<div class="btn-group">
+    <button type="button" class="btn btn-primary dropdown-toggle" data-bs-toggle="dropdown">
+        <i class="bi bi-plus-circle"></i> Nouvelle offre
+    </button>
+    <ul class="dropdown-menu">
+        <li><a class="dropdown-item" href="{{ url_for('nouvelle_offre', type='emploi') }}">
+            <i class="bi bi-person-badge text-primary"></i> Offre d'emploi
+        </a></li>
+        <li><a class="dropdown-item" href="{{ url_for('nouvelle_offre', type='stage') }}">
+            <i class="bi bi-mortarboard text-success"></i> Stage
+        </a></li>
+        <li><a class="dropdown-item" href="{{ url_for('nouvelle_offre', type='formation') }}">
+            <i class="bi bi-book text-warning"></i> Formation
+        </a></li>
+    </ul>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Filtres -->
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3">
+                        <label class="form-label">Type d'offre</label>
+                        <select class="form-select" id="typeFilter" onchange="filterByType(this.value)">
+                            <option value="all">Tous les types</option>
+                            <option value="emploi">Emplois</option>
+                            <option value="stage">Stages</option>
+                            <option value="formation">Formations</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Statut</label>
+                        <select class="form-select" id="statusFilter" onchange="filterByStatus(this.value)">
+                            <option value="all">Tous les statuts</option>
+                            <option value="active">Actives</option>
+                            <option value="expired">Expirées</option>
+                            <option value="inactive">Inactives</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Lieu</label>
+                        <select class="form-select" id="locationFilter" onchange="filterByLocation(this.value)">
+                            <option value="all">Tous les lieux</option>
+                            {% set locations = [] %}
+                            {% for offre in offres %}
+                                {% if offre.lieu and offre.lieu not in locations %}
+                                    {% set _ = locations.append(offre.lieu) %}
+                                {% endif %}
+                            {% endfor %}
+                            {% for location in locations|sort %}
+                                <option value="{{ location }}">{{ location }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Rechercher</label>
+                        <input type="text" class="form-control" id="searchInput" 
+                               placeholder="Rechercher par titre..." 
+                               onkeyup="searchOffres(this.value)">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Table des offres -->
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Titre</th>
+                        <th>Type</th>
+                        <th>Lieu</th>
+                        <th>Date limite</th>
+                        <th>Statut</th>
+                        <th>Création</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for offre in offres %}
+                    {% set is_expired = offre.date_limite and offre.date_limite < now.date() %}
+                    <tr class="{% if not offre.est_active %}table-secondary{% elif is_expired %}table-warning{% endif %}">
+                        <td>{{ offre.id }}</td>
+                        <td>
+                            <strong>{{ offre.titre }}</strong>
+                            {% if offre.description %}
+                            <br><small class="text-muted">{{ offre.description[:80] }}...</small>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if offre.type_offre == 'emploi' %}
+                            <span class="badge bg-primary">
+                                <i class="bi bi-person-badge"></i> Emploi
+                            </span>
+                            {% elif offre.type_offre == 'stage' %}
+                            <span class="badge bg-success">
+                                <i class="bi bi-mortarboard"></i> Stage
+                            </span>
+                            {% elif offre.type_offre == 'formation' %}
+                            <span class="badge bg-warning">
+                                <i class="bi bi-book"></i> Formation
+                            </span>
+                            {% else %}
+                            <span class="badge bg-secondary">{{ offre.type_offre }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if offre.lieu %}
+                            <i class="bi bi-geo-alt"></i> {{ offre.lieu }}
+                            {% else %}
+                            <span class="text-muted">Non précisé</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if offre.date_limite %}
+                                {% if is_expired %}
+                                <span class="text-danger">
+                                    <i class="bi bi-clock-history"></i> {{ offre.date_limite.strftime('%d/%m/%Y') }}
+                                    <br><small>Expirée</small>
+                                </span>
+                                {% else %}
+                                <span class="text-success">
+                                    <i class="bi bi-clock"></i> {{ offre.date_limite.strftime('%d/%m/%Y') }}
+                                    {% set days_left = (offre.date_limite - now.date()).days %}
+                                    {% if days_left >= 0 %}
+                                    <br><small>{{ days_left }} jour(s) restant(s)</small>
+                                    {% endif %}
+                                </span>
+                                {% endif %}
+                            {% else %}
+                            <span class="text-muted">Aucune date</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if not offre.est_active %}
+                            <span class="badge bg-secondary">
+                                <i class="bi bi-x-circle"></i> Inactive
+                            </span>
+                            {% elif is_expired %}
+                            <span class="badge bg-danger">
+                                <i class="bi bi-exclamation-triangle"></i> Expirée
+                            </span>
+                            {% else %}
+                            <span class="badge bg-success">
+                                <i class="bi bi-check-circle"></i> Active
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td>{{ offre.date_creation.strftime('%d/%m/%Y') }}</td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                <a href="{{ url_for('modifier_offre', id=offre.id) }}" 
+                                   class="btn btn-warning" title="Modifier">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                                <form method="POST" action="{{ url_for('supprimer_offre', id=offre.id) }}" 
+                                      class="d-inline" onsubmit="return confirm('Supprimer cette offre ?');">
+                                    <button type="submit" class="btn btn-danger" title="Supprimer">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </form>
+                                <form method="POST" action="{{ url_for('toggle_offre', id=offre.id) }}" 
+                                      class="d-inline">
+                                    <button type="submit" class="btn {% if offre.est_active %}btn-secondary{% else %}btn-success{% endif %}" 
+                                            title="{% if offre.est_active %}Désactiver{% else %}Activer{% endif %}">
+                                        {% if offre.est_active %}
+                                        <i class="bi bi-toggle-off"></i>
+                                        {% else %}
+                                        <i class="bi bi-toggle-on"></i>
+                                        {% endif %}
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="8" class="text-center text-muted py-4">
+                            <i class="bi bi-briefcase display-6 d-block mb-2"></i>
+                            Aucune offre enregistrée pour le moment.
+                            <br>
+                            <a href="{{ url_for('nouvelle_offre') }}" class="btn btn-primary mt-3">
+                                <i class="bi bi-plus-circle"></i> Créer la première offre
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Statistiques -->
+<div class="row mt-4">
+    <div class="col-md-3">
+        <div class="card text-white" style="background-color: #20c997;">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title">Total Offres</h6>
+                        <h3 class="mb-0">{{ offres|length }}</h3>
+                    </div>
+                    <i class="bi bi-briefcase display-6"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-primary text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title">Emplois</h6>
+                        <h3 class="mb-0">
+                            {% set emplois = offres|selectattr('type_offre', 'equalto', 'emploi')|list|length %}
+                            {{ emplois }}
+                        </h3>
+                    </div>
+                    <i class="bi bi-person-badge display-6"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-success text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title">Stages</h6>
+                        <h3 class="mb-0">
+                            {% set stages = offres|selectattr('type_offre', 'equalto', 'stage')|list|length %}
+                            {{ stages }}
+                        </h3>
+                    </div>
+                    <i class="bi bi-mortarboard display-6"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-warning text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title">Formations</h6>
+                        <h3 class="mb-0">
+                            {% set formations = offres|selectattr('type_offre', 'equalto', 'formation')|list|length %}
+                            {{ formations }}
+                        </h3>
+                    </div>
+                    <i class="bi bi-book display-6"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function filterByType(type) {
+        const rows = document.querySelectorAll('tbody tr');
+        rows.forEach(row => {
+            const typeCell = row.querySelector('td:nth-child(3) .badge');
+            if (type === 'all') {
+                row.style.display = '';
+            } else if (typeCell) {
+                const badgeText = typeCell.textContent.toLowerCase();
+                if (badgeText.includes(type)) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            }
+        });
+    }
+    
+    function filterByStatus(status) {
+        const rows = document.querySelectorAll('tbody tr');
+        const now = new Date();
+        
+        rows.forEach(row => {
+            const statusCell = row.querySelector('td:nth-child(6) .badge');
+            const dateCell = row.querySelector('td:nth-child(5)');
+            
+            let rowStatus = 'active';
+            
+            if (statusCell) {
+                const statusText = statusCell.textContent.toLowerCase();
+                if (statusText.includes('inactive') || statusText.includes('désactivée')) {
+                    rowStatus = 'inactive';
+                } else if (statusText.includes('expirée')) {
+                    rowStatus = 'expired';
+                }
+            }
+            
+            if (status === 'all' || rowStatus === status) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        });
+    }
+    
+    function filterByLocation(location) {
+        const rows = document.querySelectorAll('tbody tr');
+        rows.forEach(row => {
+            const locationCell = row.querySelector('td:nth-child(4)');
+            if (location === 'all') {
+                row.style.display = '';
+            } else if (locationCell) {
+                const locationText = locationCell.textContent.toLowerCase();
+                if (locationText.includes(location.toLowerCase())) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            }
+        });
+    }
+    
+    function searchOffres(query) {
+        const rows = document.querySelectorAll('tbody tr');
+        query = query.toLowerCase();
+        
+        rows.forEach(row => {
+            const titleCell = row.querySelector('td:nth-child(2) strong');
+            const title = titleCell ? titleCell.textContent.toLowerCase() : '';
+            
+            if (title.includes(query)) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        });
+    }
+</script>
+{% endblock %}

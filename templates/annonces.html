@@ -1,0 +1,290 @@
+{% extends "base.html" %}
+
+{% block title %}Gestion des Annonces - Admin Labmath{% endblock %}
+
+{% block page_title %}Gestion des Annonces{% endblock %}
+
+{% block page_actions %}
+<div class="btn-group">
+    <button type="button" class="btn btn-primary dropdown-toggle" data-bs-toggle="dropdown">
+        <i class="bi bi-plus-circle"></i> Nouvelle annonce
+    </button>
+    <ul class="dropdown-menu">
+        <li><a class="dropdown-item" href="{{ url_for('nouvelle_annonce', type='urgence') }}">
+            <i class="bi bi-exclamation-triangle text-danger"></i> Annonce urgente
+        </a></li>
+        <li><a class="dropdown-item" href="{{ url_for('nouvelle_annonce', type='info') }}">
+            <i class="bi bi-info-circle text-primary"></i> Information
+        </a></li>
+        <li><a class="dropdown-item" href="{{ url_for('nouvelle_annonce', type='evenement') }}">
+            <i class="bi bi-calendar-event text-success"></i> Événement
+        </a></li>
+    </ul>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Filtres -->
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3">
+                        <label class="form-label">Filtrer par type</label>
+                        <select class="form-select" id="typeFilter" onchange="filterByType(this.value)">
+                            <option value="all">Tous les types</option>
+                            <option value="urgence">Urgentes</option>
+                            <option value="info">Informations</option>
+                            <option value="evenement">Événements</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Filtrer par statut</label>
+                        <select class="form-select" id="statusFilter" onchange="filterByStatus(this.value)">
+                            <option value="all">Tous les statuts</option>
+                            <option value="active">Actives</option>
+                            <option value="inactive">Inactives</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Rechercher</label>
+                        <input type="text" class="form-control" id="searchInput" 
+                               placeholder="Rechercher par titre ou contenu..." 
+                               onkeyup="searchAnnonces(this.value)">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Table des annonces -->
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Titre</th>
+                        <th>Type</th>
+                        <th>Dates</th>
+                        <th>Statut</th>
+                        <th>Création</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for annonce in annonces %}
+                    <tr class="{% if not annonce.est_active %}table-secondary{% endif %}">
+                        <td>{{ annonce.id }}</td>
+                        <td>
+                            <strong>{{ annonce.titre }}</strong>
+                            {% if annonce.contenu %}
+                            <br><small class="text-muted">{{ annonce.contenu[:80] }}...</small>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if annonce.type_annonce == 'urgence' %}
+                            <span class="badge bg-danger">
+                                <i class="bi bi-exclamation-triangle"></i> Urgence
+                            </span>
+                            {% elif annonce.type_annonce == 'info' %}
+                            <span class="badge bg-primary">
+                                <i class="bi bi-info-circle"></i> Information
+                            </span>
+                            {% elif annonce.type_annonce == 'evenement' %}
+                            <span class="badge bg-success">
+                                <i class="bi bi-calendar-event"></i> Événement
+                            </span>
+                            {% else %}
+                            <span class="badge bg-secondary">{{ annonce.type_annonce }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if annonce.date_debut %}
+                            <small>Début: {{ annonce.date_debut.strftime('%d/%m/%Y %H:%M') }}</small>
+                            {% endif %}
+                            {% if annonce.date_fin %}
+                            <br><small>Fin: {{ annonce.date_fin.strftime('%d/%m/%Y %H:%M') }}</small>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if annonce.est_active %}
+                            <span class="badge bg-success">
+                                <i class="bi bi-check-circle"></i> Active
+                            </span>
+                            {% else %}
+                            <span class="badge bg-secondary">
+                                <i class="bi bi-x-circle"></i> Inactive
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td>{{ annonce.date_creation.strftime('%d/%m/%Y') }}</td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                <a href="{{ url_for('modifier_annonce', id=annonce.id) }}" 
+                                   class="btn btn-warning" title="Modifier">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                                <form method="POST" action="{{ url_for('supprimer_annonce', id=annonce.id) }}" 
+                                      class="d-inline" onsubmit="return confirm('Supprimer cette annonce ?');">
+                                    <button type="submit" class="btn btn-danger" title="Supprimer">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </form>
+                                <form method="POST" action="{{ url_for('toggle_annonce', id=annonce.id) }}" 
+                                      class="d-inline">
+                                    <button type="submit" class="btn {% if annonce.est_active %}btn-secondary{% else %}btn-success{% endif %}" 
+                                            title="{% if annonce.est_active %}Désactiver{% else %}Activer{% endif %}">
+                                        {% if annonce.est_active %}
+                                        <i class="bi bi-toggle-off"></i>
+                                        {% else %}
+                                        <i class="bi bi-toggle-on"></i>
+                                        {% endif %}
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center text-muted py-4">
+                            <i class="bi bi-megaphone display-6 d-block mb-2"></i>
+                            Aucune annonce enregistrée pour le moment.
+                            <br>
+                            <a href="{{ url_for('nouvelle_annonce') }}" class="btn btn-primary mt-3">
+                                <i class="bi bi-plus-circle"></i> Créer la première annonce
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Statistiques -->
+<div class="row mt-4">
+    <div class="col-md-3">
+        <div class="card text-white" style="background-color: #6c757d;">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title">Total Annonces</h6>
+                        <h3 class="mb-0">{{ annonces|length }}</h3>
+                    </div>
+                    <i class="bi bi-megaphone display-6"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-danger text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title">Urgentes</h6>
+                        <h3 class="mb-0">
+                            {% set urgentes = annonces|selectattr('type_annonce', 'equalto', 'urgence')|list|length %}
+                            {{ urgentes }}
+                        </h3>
+                    </div>
+                    <i class="bi bi-exclamation-triangle display-6"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-success text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title">Actives</h6>
+                        <h3 class="mb-0">
+                            {% set actives = annonces|selectattr('est_active', 'equalto', true)|list|length %}
+                            {{ actives }}
+                        </h3>
+                    </div>
+                    <i class="bi bi-check-circle display-6"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-primary text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title">Événements</h6>
+                        <h3 class="mb-0">
+                            {% set evenements = annonces|selectattr('type_annonce', 'equalto', 'evenement')|list|length %}
+                            {{ evenements }}
+                        </h3>
+                    </div>
+                    <i class="bi bi-calendar-event display-6"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function filterByType(type) {
+        const rows = document.querySelectorAll('tbody tr');
+        rows.forEach(row => {
+            const typeCell = row.querySelector('td:nth-child(3) .badge');
+            if (type === 'all') {
+                row.style.display = '';
+            } else if (typeCell) {
+                const badgeText = typeCell.textContent.toLowerCase();
+                if (badgeText.includes(type)) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            }
+        });
+    }
+    
+    function filterByStatus(status) {
+        const rows = document.querySelectorAll('tbody tr');
+        rows.forEach(row => {
+            const statusCell = row.querySelector('td:nth-child(5) .badge');
+            if (status === 'all') {
+                row.style.display = '';
+            } else if (statusCell) {
+                const isActive = statusCell.textContent.toLowerCase().includes('active');
+                if ((status === 'active' && isActive) || (status === 'inactive' && !isActive)) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            }
+        });
+    }
+    
+    function searchAnnonces(query) {
+        const rows = document.querySelectorAll('tbody tr');
+        query = query.toLowerCase();
+        
+        rows.forEach(row => {
+            const titleCell = row.querySelector('td:nth-child(2) strong');
+            const contentCell = row.querySelector('td:nth-child(2) small');
+            
+            const title = titleCell ? titleCell.textContent.toLowerCase() : '';
+            const content = contentCell ? contentCell.textContent.toLowerCase() : '';
+            
+            if (title.includes(query) || content.includes(query)) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        });
+    }
+</script>
+{% endblock %}

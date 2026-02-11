@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ 'Modifier' if annonce else 'Nouvelle' }} Annonce - Admin Labmath</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css">
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        .navbar {
+            box-shadow: 0 2px 4px rgba(0,0,0,.1);
+        }
+        .container {
+            max-width: 1200px;
+            margin-top: 20px;
+        }
+        .card {
+            box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+            margin-bottom: 20px;
+        }
+        .sidebar {
+            position: fixed;
+            top: 56px;
+            left: 0;
+            bottom: 0;
+            width: 250px;
+            background: #f8f9fa;
+            border-right: 1px solid #dee2e6;
+            padding: 20px;
+        }
+        .main-content {
+            margin-left: 250px;
+            padding: 20px;
+        }
+        @media (max-width: 768px) {
+            .sidebar {
+                position: static;
+                width: 100%;
+            }
+            .main-content {
+                margin-left: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="{{ url_for('dashboard') }}">
+                <i class="bi bi-speedometer2"></i> Admin Labmath
+            </a>
+            <div class="navbar-nav ms-auto">
+                {% if session.get('user_id') %}
+                <span class="navbar-text me-3">
+                    <i class="bi bi-person-circle"></i> {{ session.get('username', 'Admin') }}
+                </span>
+                <a class="btn btn-outline-light btn-sm" href="{{ url_for('logout') }}">
+                    <i class="bi bi-box-arrow-right"></i> Déconnexion
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+            <div class="col-md-3 col-lg-2 d-md-block sidebar">
+                <ul class="nav flex-column">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('dashboard') }}">
+                            <i class="bi bi-speedometer2"></i> Tableau de bord
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('activites') }}">
+                            <i class="bi bi-calendar-event"></i> Activités
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('realisations') }}">
+                            <i class="bi bi-trophy"></i> Réalisations
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="{{ url_for('annonces') }}">
+                            <i class="bi bi-megaphone"></i> Annonces
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('offres') }}">
+                            <i class="bi bi-briefcase"></i> Offres
+                        </a>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Main content -->
+            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
+                <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                    <h1 class="h2">
+                        <i class="bi bi-megaphone"></i>
+                        {{ 'Modifier' if annonce else 'Nouvelle' }} Annonce
+                    </h1>
+                </div>
+
+                <!-- Messages flash -->
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                            <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show" role="alert">
+                                {{ message }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+
+                <div class="row">
+                    <div class="col-md-8">
+                        <div class="card">
+                            <div class="card-body">
+                                <form method="POST">
+                                    <div class="mb-3">
+                                        <label for="titre" class="form-label">Titre *</label>
+                                        <input type="text" class="form-control" id="titre" name="titre" 
+                                               value="{{ annonce.titre if annonce else '' }}" required>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label for="type_annonce" class="form-label">Type d'annonce *</label>
+                                        <select class="form-select" id="type_annonce" name="type_annonce" required>
+                                            <option value="info" {% if annonce and annonce.type_annonce == 'info' %}selected{% endif %}>
+                                                Information
+                                            </option>
+                                            <option value="urgence" {% if annonce and annonce.type_annonce == 'urgence' %}selected{% endif %}>
+                                                Urgence
+                                            </option>
+                                            <option value="evenement" {% if annonce and annonce.type_annonce == 'evenement' %}selected{% endif %}>
+                                                Événement
+                                            </option>
+                                        </select>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label for="contenu" class="form-label">Contenu *</label>
+                                        <textarea class="form-control" id="contenu" name="contenu" rows="6" required>{{ annonce.contenu if annonce else '' }}</textarea>
+                                        <div class="form-text">Détails complets de l'annonce. HTML autorisé.</div>
+                                    </div>
+                                    
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label for="date_debut" class="form-label">Date de début</label>
+                                                <input type="datetime-local" class="form-control" id="date_debut" name="date_debut"
+                                                       value="{{ annonce.date_debut.strftime('%Y-%m-%dT%H:%M') if annonce and annonce.date_debut else '' }}">
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label for="date_fin" class="form-label">Date de fin</label>
+                                                <input type="datetime-local" class="form-control" id="date_fin" name="date_fin"
+                                                       value="{{ annonce.date_fin.strftime('%Y-%m-%dT%H:%M') if annonce and annonce.date_fin else '' }}">
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="est_active" name="est_active" 
+                                                   value="true" {% if not annonce or annonce.est_active %}checked{% endif %}>
+                                            <label class="form-check-label" for="est_active">
+                                                Annonce active
+                                            </label>
+                                        </div>
+                                        <div class="form-text">Les annonces inactives ne sont pas affichées sur le site.</div>
+                                    </div>
+                                    
+                                    <div class="d-flex justify-content-between">
+                                        <a href="{{ url_for('annonces') }}" class="btn btn-secondary">
+                                            <i class="bi bi-arrow-left"></i> Annuler
+                                        </a>
+                                        <button type="submit" class="btn btn-primary">
+                                            <i class="bi bi-save"></i> {{ 'Mettre à jour' if annonce else 'Créer' }}
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-4">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0"><i class="bi bi-info-circle"></i> Types d'annonces</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="mb-3">
+                                    <span class="badge bg-primary mb-2 d-block">
+                                        <i class="bi bi-info-circle"></i> Information
+                                    </span>
+                                    <p class="small">Pour les nouvelles, mises à jour et informations générales.</p>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <span class="badge bg-danger mb-2 d-block">
+                                        <i class="bi bi-exclamation-triangle"></i> Urgence
+                                    </span>
+                                    <p class="small">Pour les annonces importantes qui nécessitent une attention immédiate.</p>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <span class="badge bg-success mb-2 d-block">
+                                        <i class="bi bi-calendar-event"></i> Événement
+                                    </span>
+                                    <p class="small">Pour les conférences, séminaires, ateliers et autres événements.</p>
+                                </div>
+                                
+                                <hr>
+                                
+                                <p><strong>Conseils:</strong></p>
+                                <ul class="small">
+                                    <li>Les annonces urgentes apparaissent en haut de la page</li>
+                                    <li>Spécifiez les dates pour les événements</li>
+                                    <li>Utilisez un langage clair et concis</li>
+                                    <li>Vérifiez l'orthographe avant publication</li>
+                                </ul>
+                                
+                                {% if annonce %}
+                                <hr>
+                                <div class="small">
+                                    <p><strong>Informations techniques:</strong></p>
+                                    <p>ID: {{ annonce.id }}</p>
+                                    <p>Créée le: {{ annonce.date_creation.strftime('%d/%m/%Y %H:%M') if annonce.date_creation else '' }}</p>
+                                    {% if annonce.date_modification %}
+                                    <p>Modifiée le: {{ annonce.date_modification.strftime('%d/%m/%Y %H:%M') }}</p>
+                                    {% endif %}
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Mise à jour automatique du champ date_fin si vide et date_debut rempli
+        document.getElementById('date_debut').addEventListener('change', function() {
+            const dateFin = document.getElementById('date_fin');
+            if (!dateFin.value && this.value) {
+                // Ajouter 7 jours par défaut
+                const dateDebut = new Date(this.value);
+                dateDebut.setDate(dateDebut.getDate() + 7);
+                
+                const year = dateDebut.getFullYear();
+                const month = String(dateDebut.getMonth() + 1).padStart(2, '0');
+                const day = String(dateDebut.getDate()).padStart(2, '0');
+                const hours = String(dateDebut.getHours()).padStart(2, '0');
+                const minutes = String(dateDebut.getMinutes()).padStart(2, '0');
+                
+                dateFin.value = `${year}-${month}-${day}T${hours}:${minutes}`;
+            }
+        });
+    </script>
+</body>
+</html>
