@@ -16,7 +16,7 @@ CORS(app)
 # --- CONFIGURATION ---
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', '32015@1a')
 
-# Correction impérative pour PostgreSQL sur Render
+# Correction pour PostgreSQL sur Render
 database_url = os.environ.get('DATABASE_URL', 'sqlite:///labmath_db.sqlite')
 if database_url and database_url.startswith("postgres://"):
     database_url = database_url.replace("postgres://", "postgresql://", 1)
@@ -29,31 +29,25 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 # Initialisation de la base de données
 db = SQLAlchemy(app)
 
-# Configuration pour l'API du site principal
-SITE_URL = os.environ.get('SITE_URL', 'https://labmathscsmaubmar.org')  # URL du site principal
-API_KEY = os.environ.get('API_KEY', '')  # Clé API à définir dans les variables d'environnement
-API_TIMEOUT = int(os.environ.get('API_TIMEOUT', 10))
+# --- CONFIGURATION API DU SITE PRINCIPAL ---
+# UTILISEZ L'URL CORRECTE DE VOTRE SITE PRINCIPAL
+SITE_URL = os.environ.get('SITE_URL', 'https://labmathscsmaubmar.org')  # À MODIFIER
+API_KEY = os.environ.get('API_KEY', 'labmath_api_secret_2024')  # MÊME CLÉ QUE DANS api.py
+API_TIMEOUT = int(os.environ.get('API_TIMEOUT', 15))
 
-# --- DÉCORATEURS DE SÉCURITÉ ---
+print(f"🌐 Site principal configuré: {SITE_URL}")
+print(f"🔑 Clé API configurée: {'Oui' if API_KEY else 'Non'}")
+
+# --- DÉCORATEUR SÉCURITÉ ---
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if 'user_id' not in session:
-            flash('Veuillez vous connecter pour accéder à cette page', 'warning')
             return redirect(url_for('login'))
         return f(*args, **kwargs)
     return decorated_function
 
-def api_key_required(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        api_key = request.headers.get('X-API-Key')
-        if not api_key or api_key != API_KEY:
-            return jsonify({'error': 'Non autorisé', 'message': 'Clé API invalide ou manquante'}), 401
-        return f(*args, **kwargs)
-    return decorated_function
-
-# --- MODÈLES DE DONNÉES ---
+# --- MODÈLES AVEC CHAMPS DE SYNCHRONISATION ---
 class Activite(db.Model):
     __tablename__ = 'activites'
     id = db.Column(db.Integer, primary_key=True)
@@ -65,9 +59,10 @@ class Activite(db.Model):
     date_creation = db.Column(db.DateTime, default=datetime.utcnow)
     date_modification = db.Column(db.DateTime, onupdate=datetime.utcnow)
     est_publie = db.Column(db.Boolean, default=True)
-    last_sync = db.Column(db.DateTime)  # Date de dernière synchronisation
-    sync_status = db.Column(db.String(20), default='pending')  # pending, success, failed
-    sync_message = db.Column(db.Text)  # Message d'erreur si échec
+    # Champs de synchronisation
+    last_sync = db.Column(db.DateTime)
+    sync_status = db.Column(db.String(20), default='pending')
+    sync_message = db.Column(db.Text)
 
 class Realisation(db.Model):
     __tablename__ = 'realisations'
@@ -79,6 +74,7 @@ class Realisation(db.Model):
     date_realisation = db.Column(db.Date)
     date_creation = db.Column(db.DateTime, default=datetime.utcnow)
     date_modification = db.Column(db.DateTime, onupdate=datetime.utcnow)
+    # Champs de synchronisation
     last_sync = db.Column(db.DateTime)
     sync_status = db.Column(db.String(20), default='pending')
     sync_message = db.Column(db.Text)
@@ -94,6 +90,7 @@ class Annonce(db.Model):
     date_creation = db.Column(db.DateTime, default=datetime.utcnow)
     date_modification = db.Column(db.DateTime, onupdate=datetime.utcnow)
     est_active = db.Column(db.Boolean, default=True)
+    # Champs de synchronisation
     last_sync = db.Column(db.DateTime)
     sync_status = db.Column(db.String(20), default='pending')
     sync_message = db.Column(db.Text)
@@ -109,14 +106,15 @@ class Offre(db.Model):
     date_creation = db.Column(db.DateTime, default=datetime.utcnow)
     date_modification = db.Column(db.DateTime, onupdate=datetime.utcnow)
     est_active = db.Column(db.Boolean, default=True)
+    # Champs de synchronisation
     last_sync = db.Column(db.DateTime)
     sync_status = db.Column(db.String(20), default='pending')
     sync_message = db.Column(db.Text)
 
-# --- FONCTIONS UTILITAIRES POUR L'API ---
+# --- FONCTIONS DE SYNCHRONISATION POUR L'API JSON ---
 
 def get_api_headers():
-    """Retourne les headers pour les requêtes API"""
+    """Retourne les headers pour l'API du site principal"""
     return {
         'Content-Type': 'application/json',
         'X-API-Key': API_KEY,
@@ -135,20 +133,19 @@ def check_site_connection():
             timeout=5
         )
         if response.status_code == 200:
-            return True, "Connecté"
+            data = response.json()
+            return True, data.get('message', 'Connecté')
         else:
             return False, f"Erreur {response.status_code}"
     except requests.exceptions.ConnectionError:
-        return False, "Site inaccessible"
+        return False, "Site principal inaccessible"
     except requests.exceptions.Timeout:
         return False, "Délai d'attente dépassé"
     except Exception as e:
-        return False, str(e)
-
-# --- FONCTIONS DE SYNCHRONISATION AMÉLIORÉES ---
+        return False, str(e)[:50]
 
 def sync_activite_to_site(activite):
-    """Synchronise une activité vers le site principal"""
+    """Synchronise une activité vers le site principal (API JSON)"""
     if not API_KEY:
         activite.sync_status = 'failed'
         activite.sync_message = "Clé API non configurée"
@@ -156,28 +153,26 @@ def sync_activite_to_site(activite):
         return False, "Clé API non configurée"
     
     if not activite.est_publie:
-        # Si non publié, on ne synchronise pas
         activite.sync_status = 'skipped'
         activite.sync_message = "Non publié - synchronisation ignorée"
         db.session.commit()
         return True, "Synchronisation ignorée (non publié)"
     
     try:
-        # Préparer les données
+        # Préparer les données pour l'API
         data = {
+            'id': str(activite.id),
             'titre': activite.titre,
             'description': activite.description or '',
             'contenu': activite.contenu or '',
             'image_url': activite.image_url or '',
             'auteur': activite.auteur or 'Admin',
             'est_publie': activite.est_publie,
-            'admin_id': activite.id,
-            'date_creation': activite.date_creation.isoformat() if activite.date_creation else None,
-            'date_modification': datetime.utcnow().isoformat()
+            'date_creation': activite.date_creation.isoformat() if activite.date_creation else datetime.utcnow().isoformat()
         }
         
-        # Tentative de synchronisation
-        url = f"{SITE_URL}/api/activites"
+        # Appel à l'API du site principal
+        url = f"{SITE_URL}/api/activites/{activite.id}"
         response = requests.post(
             url,
             json=data,
@@ -193,7 +188,13 @@ def sync_activite_to_site(activite):
             db.session.commit()
             return True, "Synchronisation réussie"
         else:
-            error_msg = f"Erreur API {response.status_code}: {response.text[:200]}"
+            error_msg = f"Erreur API {response.status_code}"
+            try:
+                error_data = response.json()
+                error_msg += f": {error_data.get('message', '')}"
+            except:
+                error_msg += f": {response.text[:100]}"
+            
             activite.sync_status = 'failed'
             activite.sync_message = error_msg
             db.session.commit()
@@ -206,7 +207,7 @@ def sync_activite_to_site(activite):
         db.session.commit()
         return False, error_msg
     except Exception as e:
-        error_msg = f"Erreur inattendue: {str(e)}"
+        error_msg = f"Erreur: {str(e)}"
         activite.sync_status = 'failed'
         activite.sync_message = error_msg
         db.session.commit()
@@ -222,15 +223,16 @@ def sync_realisation_to_site(realisation):
     
     try:
         data = {
+            'id': str(realisation.id),
             'titre': realisation.titre,
             'description': realisation.description or '',
             'image_url': realisation.image_url or '',
             'categorie': realisation.categorie or '',
             'date_realisation': realisation.date_realisation.isoformat() if realisation.date_realisation else None,
-            'admin_id': realisation.id
+            'date_creation': realisation.date_creation.isoformat() if realisation.date_creation else datetime.utcnow().isoformat()
         }
         
-        url = f"{SITE_URL}/api/realisations"
+        url = f"{SITE_URL}/api/realisations/{realisation.id}"
         response = requests.post(
             url,
             json=data,
@@ -245,7 +247,7 @@ def sync_realisation_to_site(realisation):
             db.session.commit()
             return True, "Synchronisation réussie"
         else:
-            error_msg = f"Erreur API {response.status_code}: {response.text[:200]}"
+            error_msg = f"Erreur API {response.status_code}"
             realisation.sync_status = 'failed'
             realisation.sync_message = error_msg
             db.session.commit()
@@ -273,16 +275,17 @@ def sync_annonce_to_site(annonce):
     
     try:
         data = {
+            'id': str(annonce.id),
             'titre': annonce.titre,
             'contenu': annonce.contenu or '',
-            'type_annonce': annonce.type_annonce or '',
+            'type_annonce': annonce.type_annonce or 'info',
             'date_debut': annonce.date_debut.isoformat() if annonce.date_debut else None,
             'date_fin': annonce.date_fin.isoformat() if annonce.date_fin else None,
-            'est_active': annonce.est_active,
-            'admin_id': annonce.id
+            'date_creation': annonce.date_creation.isoformat() if annonce.date_creation else datetime.utcnow().isoformat(),
+            'est_active': annonce.est_active
         }
         
-        url = f"{SITE_URL}/api/annonces"
+        url = f"{SITE_URL}/api/annonces/{annonce.id}"
         response = requests.post(
             url,
             json=data,
@@ -297,7 +300,7 @@ def sync_annonce_to_site(annonce):
             db.session.commit()
             return True, "Synchronisation réussie"
         else:
-            error_msg = f"Erreur API {response.status_code}: {response.text[:200]}"
+            error_msg = f"Erreur API {response.status_code}"
             annonce.sync_status = 'failed'
             annonce.sync_message = error_msg
             db.session.commit()
@@ -325,16 +328,17 @@ def sync_offre_to_site(offre):
     
     try:
         data = {
+            'id': str(offre.id),
             'titre': offre.titre,
             'description': offre.description or '',
-            'type_offre': offre.type_offre or '',
+            'type_offre': offre.type_offre or 'autre',
             'lieu': offre.lieu or '',
             'date_limite': offre.date_limite.isoformat() if offre.date_limite else None,
-            'est_active': offre.est_active,
-            'admin_id': offre.id
+            'date_creation': offre.date_creation.isoformat() if offre.date_creation else datetime.utcnow().isoformat(),
+            'est_active': offre.est_active
         }
         
-        url = f"{SITE_URL}/api/offres"
+        url = f"{SITE_URL}/api/offres/{offre.id}"
         response = requests.post(
             url,
             json=data,
@@ -349,7 +353,7 @@ def sync_offre_to_site(offre):
             db.session.commit()
             return True, "Synchronisation réussie"
         else:
-            error_msg = f"Erreur API {response.status_code}: {response.text[:200]}"
+            error_msg = f"Erreur API {response.status_code}"
             offre.sync_status = 'failed'
             offre.sync_message = error_msg
             db.session.commit()
@@ -385,12 +389,12 @@ def delete_from_site(model_type, item_id):
         )
         
         if response.status_code in [200, 204]:
-            return True, "Suppression synchronisée avec le site"
+            return True, "Suppression synchronisée"
         else:
-            return False, f"Erreur lors de la suppression: {response.status_code}"
+            return False, f"Erreur {response.status_code}"
             
     except Exception as e:
-        return False, f"Erreur de synchronisation: {str(e)}"
+        return False, f"Erreur: {str(e)}"
 
 # --- ROUTES AUTHENTIFICATION ---
 
@@ -412,7 +416,6 @@ def login():
         if username == admin_user and password == admin_pass:
             session['user_id'] = 1
             session['username'] = username
-            session['login_time'] = datetime.utcnow().isoformat()
             flash('Connexion réussie!', 'success')
             return redirect(url_for('dashboard'))
         else:
@@ -431,7 +434,6 @@ def logout():
 @login_required
 def dashboard():
     try:
-        # Statistiques
         stats = {
             'activities_count': Activite.query.count(),
             'realisations_count': Realisation.query.count(),
@@ -454,21 +456,10 @@ def dashboard():
         site_connected, site_message = check_site_connection()
         stats['site_connected'] = site_connected
         stats['site_message'] = site_message
-        stats['api_key_configured'] = bool(API_KEY)
         
         # Récupérer les 5 derniers éléments
         recent_activities = Activite.query.order_by(Activite.date_creation.desc()).limit(5).all()
         recent_annonces = Annonce.query.order_by(Annonce.date_creation.desc()).limit(5).all()
-        recent_realisations = Realisation.query.order_by(Realisation.date_creation.desc()).limit(5).all()
-        recent_offres = Offre.query.order_by(Offre.date_creation.desc()).limit(5).all()
-        
-        # Éléments en échec de synchronisation
-        failed_syncs = {
-            'activites': Activite.query.filter_by(sync_status='failed').count(),
-            'realisations': Realisation.query.filter_by(sync_status='failed').count(),
-            'annonces': Annonce.query.filter_by(sync_status='failed').count(),
-            'offres': Offre.query.filter_by(sync_status='failed').count()
-        }
         
         return render_template('dashboard.html',
                               stats=stats,
@@ -476,9 +467,7 @@ def dashboard():
                               site_url=SITE_URL,
                               recent_activities=recent_activities,
                               recent_annonces=recent_annonces,
-                              recent_realisations=recent_realisations,
-                              recent_offres=recent_offres,
-                              failed_syncs=failed_syncs)
+                              api_key_configured=bool(API_KEY))
     except Exception as e:
         flash(f'Erreur lors du chargement du dashboard: {str(e)}', 'danger')
         return render_template('simple_dashboard.html',
@@ -965,17 +954,14 @@ def supprimer_offre(id):
 @app.route('/sync/all')
 @login_required
 def sync_all():
-    """Synchronise tous les éléments en attente ou en échec"""
+    """Synchronise tous les éléments publiés/actifs"""
     if not API_KEY:
         flash('❌ Clé API non configurée. Impossible de synchroniser.', 'danger')
         return redirect(url_for('dashboard'))
     
     try:
         # Récupérer tous les éléments à synchroniser
-        activites = Activite.query.filter_by(est_publie=True).filter(
-            (Activite.sync_status != 'success') | (Activite.sync_status.is_(None))
-        ).all()
-        
+        activites = Activite.query.filter_by(est_publie=True).all()
         realisations = Realisation.query.all()
         annonces = Annonce.query.filter_by(est_active=True).all()
         offres = Offre.query.filter_by(est_active=True).all()
@@ -988,31 +974,23 @@ def sync_all():
         
         for activite in activites:
             success, _ = sync_activite_to_site(activite)
-            if success:
-                success_count += 1
-            else:
-                fail_count += 1
+            if success: success_count += 1
+            else: fail_count += 1
         
         for realisation in realisations:
             success, _ = sync_realisation_to_site(realisation)
-            if success:
-                success_count += 1
-            else:
-                fail_count += 1
+            if success: success_count += 1
+            else: fail_count += 1
         
         for annonce in annonces:
             success, _ = sync_annonce_to_site(annonce)
-            if success:
-                success_count += 1
-            else:
-                fail_count += 1
+            if success: success_count += 1
+            else: fail_count += 1
         
         for offre in offres:
             success, _ = sync_offre_to_site(offre)
-            if success:
-                success_count += 1
-            else:
-                fail_count += 1
+            if success: success_count += 1
+            else: fail_count += 1
         
         flash(f'✅ Synchronisation terminée: {success_count} réussie(s), {fail_count} échec(s)', 
               'success' if fail_count == 0 else 'warning')
@@ -1055,58 +1033,20 @@ def retry_failed():
     
     return redirect(url_for('dashboard'))
 
-# --- ROUTES API POUR LE SITE PRINCIPAL ---
+# --- ROUTES API POUR LE SITE PRINCIPAL (STATUS) ---
 
 @app.route('/api/health')
 def api_health():
-    """Endpoint de santé pour vérifier que l'API fonctionne"""
+    """Endpoint de santé"""
+    site_connected, site_message = check_site_connection()
     return jsonify({
         'status': 'ok',
         'service': 'labmath-admin',
         'timestamp': datetime.utcnow().isoformat(),
+        'site_connected': site_connected,
+        'site_message': site_message,
         'api_configured': bool(API_KEY),
         'site_url': SITE_URL
-    })
-
-@app.route('/api/status')
-@login_required
-def api_status():
-    """Endpoint pour obtenir le statut détaillé de l'API"""
-    site_connected, site_message = check_site_connection()
-    
-    return jsonify({
-        'status': 'ok',
-        'service': 'labmath-admin',
-        'timestamp': datetime.utcnow().isoformat(),
-        'site': {
-            'url': SITE_URL,
-            'connected': site_connected,
-            'message': site_message
-        },
-        'api': {
-            'configured': bool(API_KEY),
-            'key_present': bool(API_KEY)
-        },
-        'database': {
-            'activites': Activite.query.count(),
-            'realisations': Realisation.query.count(),
-            'annonces': Annonce.query.count(),
-            'offres': Offre.query.count()
-        },
-        'sync_status': {
-            'pending': Activite.query.filter_by(sync_status='pending').count() +
-                      Realisation.query.filter_by(sync_status='pending').count() +
-                      Annonce.query.filter_by(sync_status='pending').count() +
-                      Offre.query.filter_by(sync_status='pending').count(),
-            'failed': Activite.query.filter_by(sync_status='failed').count() +
-                     Realisation.query.filter_by(sync_status='failed').count() +
-                     Annonce.query.filter_by(sync_status='failed').count() +
-                     Offre.query.filter_by(sync_status='failed').count(),
-            'success': Activite.query.filter_by(sync_status='success').count() +
-                      Realisation.query.filter_by(sync_status='success').count() +
-                      Annonce.query.filter_by(sync_status='success').count() +
-                      Offre.query.filter_by(sync_status='success').count()
-        }
     })
 
 # --- GESTION DES ERREURS ---
@@ -1124,71 +1064,85 @@ def internal_server_error(e):
         return render_template('500.html', error=str(e)), 500
     return redirect(url_for('login'))
 
-# --- COMMANDES POUR LA BASE DE DONNÉES ---
+# --- INITIALISATION DE LA BASE DE DONNÉES ---
 
 def init_database():
-    """Initialise la base de données avec les nouvelles colonnes"""
+    """Initialise la base de données avec les colonnes de synchronisation"""
     try:
-        # Vérifier si les colonnes existent déjà
-        inspector = db.inspect(db.engine)
-        columns_activite = [col['name'] for col in inspector.get_columns('activites')]
-        columns_realisation = [col['name'] for col in inspector.get_columns('realisations')]
-        columns_annonce = [col['name'] for col in inspector.get_columns('annonces')]
-        columns_offre = [col['name'] for col in inspector.get_columns('offres')]
+        db.create_all()
         
-        # Ajouter les colonnes manquantes
+        # Vérifier et ajouter les colonnes manquantes
         with db.engine.connect() as conn:
-            if 'last_sync' not in columns_activite:
+            # Pour Activite
+            try:
                 conn.execute(db.text('ALTER TABLE activites ADD COLUMN last_sync TIMESTAMP'))
-            if 'sync_status' not in columns_activite:
+            except:
+                pass
+            try:
                 conn.execute(db.text("ALTER TABLE activites ADD COLUMN sync_status VARCHAR(20) DEFAULT 'pending'"))
-            if 'sync_message' not in columns_activite:
+            except:
+                pass
+            try:
                 conn.execute(db.text('ALTER TABLE activites ADD COLUMN sync_message TEXT'))
+            except:
+                pass
             
-            if 'last_sync' not in columns_realisation:
+            # Pour Realisation
+            try:
                 conn.execute(db.text('ALTER TABLE realisations ADD COLUMN last_sync TIMESTAMP'))
-            if 'sync_status' not in columns_realisation:
+            except:
+                pass
+            try:
                 conn.execute(db.text("ALTER TABLE realisations ADD COLUMN sync_status VARCHAR(20) DEFAULT 'pending'"))
-            if 'sync_message' not in columns_realisation:
+            except:
+                pass
+            try:
                 conn.execute(db.text('ALTER TABLE realisations ADD COLUMN sync_message TEXT'))
+            except:
+                pass
             
-            if 'last_sync' not in columns_annonce:
+            # Pour Annonce
+            try:
                 conn.execute(db.text('ALTER TABLE annonces ADD COLUMN last_sync TIMESTAMP'))
-            if 'sync_status' not in columns_annonce:
+            except:
+                pass
+            try:
                 conn.execute(db.text("ALTER TABLE annonces ADD COLUMN sync_status VARCHAR(20) DEFAULT 'pending'"))
-            if 'sync_message' not in columns_annonce:
+            except:
+                pass
+            try:
                 conn.execute(db.text('ALTER TABLE annonces ADD COLUMN sync_message TEXT'))
+            except:
+                pass
             
-            if 'last_sync' not in columns_offre:
+            # Pour Offre
+            try:
                 conn.execute(db.text('ALTER TABLE offres ADD COLUMN last_sync TIMESTAMP'))
-            if 'sync_status' not in columns_offre:
+            except:
+                pass
+            try:
                 conn.execute(db.text("ALTER TABLE offres ADD COLUMN sync_status VARCHAR(20) DEFAULT 'pending'"))
-            if 'sync_message' not in columns_offre:
+            except:
+                pass
+            try:
                 conn.execute(db.text('ALTER TABLE offres ADD COLUMN sync_message TEXT'))
+            except:
+                pass
             
             conn.commit()
-            print("✅ Colonnes de synchronisation ajoutées avec succès")
             
     except Exception as e:
-        print(f"⚠️ Erreur lors de l'ajout des colonnes: {e}")
-        # Si les colonnes existent déjà, on continue
-        pass
-    
-    # Créer toutes les tables si elles n'existent pas
-    db.create_all()
-    print("✅ Base de données initialisée avec succès")
+        print(f"⚠️ Note: {e}")
 
 # --- INITIALISATION ---
 with app.app_context():
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-    
-    # Initialiser la base de données avec les nouvelles colonnes
     init_database()
-    
+    print("✅ Base de données initialisée")
     print(f"📁 Dossier templates: {app.template_folder}")
-    print(f"🌐 Site principal configuré: {SITE_URL}")
-    print(f"🔑 Clé API configurée: {'Oui' if API_KEY else 'Non'}")
+    print(f"🌐 Site principal: {SITE_URL}")
+    print(f"🔑 API Key: {'Configurée' if API_KEY else 'Non configurée'}")
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 10000))
-    app.run(host='0.0.0.0', port=port, debug=False)  # Mettre debug=False en production
+    app.run(host='0.0.0.0', port=port, debug=False)
