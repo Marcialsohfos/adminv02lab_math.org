@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - LabMath Admin</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 20px; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .card { background: white; border-radius: 10px; padding: 30px; margin-bottom: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.1); }
+        .error { background: #fee; color: #c00; padding: 15px; border-radius: 5px; border-left: 4px solid #c00; margin-bottom: 20px; }
+        h1 { color: #333; margin-bottom: 20px; }
+        .btn { display: inline-block; padding: 10px 20px; background: #667eea; color: white; text-decoration: none; border-radius: 5px; margin-right: 10px; }
+        .btn:hover { background: #5a67d8; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <h1>🔧 Dashboard - Mode Maintenance</h1>
+            
+            <div class="error">
+                <strong>⚠️ Erreur détectée :</strong> {{ error }}
+            </div>
+            
+            <p>La base de données est en cours de mise à jour. Veuillez patienter quelques instants...</p>
+            
+            <div style="margin-top: 30px;">
+                <a href="{{ url_for('activites') }}" class="btn">📋 Voir les activités</a>
+                <a href="{{ url_for('realisations') }}" class="btn">🏆 Voir les réalisations</a>
+                <a href="{{ url_for('annonces') }}" class="btn">📢 Voir les annonces</a>
+                <a href="{{ url_for('offres') }}" class="btn">💼 Voir les offres</a>
+                <a href="{{ url_for('logout') }}" class="btn" style="background: #e53e3e;">🚪 Déconnexion</a>
+            </div>
+            
+            <p style="margin-top: 30px; color: #666; font-size: 0.9em;">
+                Dernière mise à jour : {{ now.strftime('%d/%m/%Y %H:%M:%S') }}
+            </p>
+        </div>
+    </div>
+</body>
+</html>
